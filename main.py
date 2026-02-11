@@ -5,7 +5,7 @@ from io import BytesIO
 from PIL import Image
 
 SPN = (0.005, 0.005)
-apikey = "f3a0fe3a-b07e-4840-a1da-06f18b2ddf13"
+apikey = "Enter your API key"
 
 
 class MainView(arcade.View):
