@@ -1,0 +1,106 @@
+import arcade
+import arcade.gui
+import requests
+from io import BytesIO
+from PIL import Image
+
+SPN = (50, 50)
+apikey = "Enter your API key"
+
+
+class MainView(arcade.View):
+    def __init__(self):
+        super().__init__()
+        self.uimanager = arcade.gui.UIManager()
+        self.uimanager.enable()
+        self.map = None
+        self.map_widget = arcade.gui.UIImage(
+            texture=arcade.Texture.create_empty("start_map", (800, 500)),
+            width=800,
+            height=500
+        )
+        self.main_layout = arcade.gui.UIAnchorLayout()
+        self.vbox = arcade.gui.UIBoxLayout(vertical=True, space_between=20)
+        self.menu_layout = arcade.gui.UIGridLayout(
+            column_count=3,
+            row_count=2,
+            horizontal_spacing=15,
+            vertical_spacing=10
+        )
+
+        label_x = arcade.gui.UILabel(
+            text="X:",
+            width=100,
+            height=30,
+            align="right"
+        )
+        self.input_x = arcade.gui.UIInputText(
+            text="1",
+            width=150,
+            height=30,
+            caret_color=arcade.color.WHITE,
+        )
+
+        label_y = arcade.gui.UILabel(
+            text="Y:",
+            width=100,
+            height=30,
+            align="right"
+        )
+        self.input_y = arcade.gui.UIInputText(
+            text="1",
+            width=150,
+            height=30,
+            caret_color=arcade.color.WHITE,
+        )
+        search_button = arcade.gui.UIFlatButton(
+            text='Search',
+            width=100,
+            height=30
+        )
+        search_button.on_click = self.search_and_draw
+
+        self.menu_layout.add(label_x, column=0, row=0)
+        self.menu_layout.add(self.input_x, column=1, row=0)
+
+        self.menu_layout.add(label_y, column=0, row=1)
+        self.menu_layout.add(self.input_y, column=1, row=1)
+
+        self.menu_layout.add(search_button, column=2, row=1)
+
+        self.vbox.add(self.menu_layout)
+        self.vbox.add(self.map_widget)
+        self.main_layout.add(
+            child=self.vbox,
+            anchor_x="left",
+            anchor_y="top"
+        )
+        self.uimanager.add(self.main_layout)
+
+    def on_draw(self):
+        self.clear()
+        self.uimanager.draw()
+
+    def search_and_draw(self, event):
+        try:
+            ll_x = str(float(self.input_x.text))
+            ll_y = str(float(self.input_y.text))
+            f = requests.get(
+                f'https://static-maps.yandex.ru/v1?ll={ll_x},{ll_y}&spn={str(SPN[0])},{str(SPN[1])}&' +
+                f'apikey={apikey}').content
+            image_data = BytesIO(f)
+            self.map = arcade.Texture(Image.open(image_data).convert('RGBA'))
+            self.map_widget.texture = self.map
+        except Exception:
+            print("Invalid input")
+
+
+def main():
+    window = arcade.Window(width=800, height=600, title="Map", resizable=True)
+    view = MainView()
+    window.show_view(view)
+    arcade.run()
+
+
+if __name__ == "__main__":
+    main()
