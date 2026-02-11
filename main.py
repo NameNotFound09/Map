@@ -37,7 +37,7 @@ class MainView(arcade.View):
             align="right"
         )
         self.input_x = arcade.gui.UIInputText(
-            text="1",
+            text="",
             width=150,
             height=30,
             caret_color=arcade.color.WHITE,
@@ -50,7 +50,7 @@ class MainView(arcade.View):
             align="right"
         )
         self.input_y = arcade.gui.UIInputText(
-            text="1",
+            text="",
             width=150,
             height=30,
             caret_color=arcade.color.WHITE,
@@ -114,6 +114,24 @@ class MainView(arcade.View):
             if SPN[0] * 5 <= 80:
                 SPN = (SPN[0] * 5, SPN[1] * 5)
                 self.redraw()
+
+        step_x = SPN[0] / 2
+        step_y = SPN[1] / 2
+        x = float(self.ll_x)
+        y = float(self.ll_y)
+        if key == arcade.key.LEFT:
+            x -= step_x
+        if key == arcade.key.RIGHT:
+            x += step_x
+        if key == arcade.key.UP:
+            y += step_y
+        if key == arcade.key.DOWN:
+            y -= step_y
+        x = max(-180, min(180, x))
+        y = max(-85, min(85, y))
+        self.ll_x = str(x)
+        self.ll_y = str(y)
+        self.redraw()
 
 
 def main():
