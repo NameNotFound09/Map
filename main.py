@@ -4,8 +4,8 @@ import requests
 from io import BytesIO
 from PIL import Image
 
-SPN = (50, 50)
-apikey = "Enter your API key"
+SPN = (0.005, 0.005)
+apikey = "f3a0fe3a-b07e-4840-a1da-06f18b2ddf13"
 
 
 class MainView(arcade.View):
@@ -13,6 +13,8 @@ class MainView(arcade.View):
         super().__init__()
         self.uimanager = arcade.gui.UIManager()
         self.uimanager.enable()
+        self.ll_y = '0'
+        self.ll_x = '0'
         self.map = None
         self.map_widget = arcade.gui.UIImage(
             texture=arcade.Texture.create_empty("start_map", (800, 500)),
@@ -83,16 +85,35 @@ class MainView(arcade.View):
 
     def search_and_draw(self, event):
         try:
-            ll_x = str(float(self.input_x.text))
-            ll_y = str(float(self.input_y.text))
+            self.ll_x = str(float(self.input_x.text))
+            self.ll_y = str(float(self.input_y.text))
             f = requests.get(
-                f'https://static-maps.yandex.ru/v1?ll={ll_x},{ll_y}&spn={str(SPN[0])},{str(SPN[1])}&' +
+                f'https://static-maps.yandex.ru/v1?ll={self.ll_x},{self.ll_y}&spn={str(SPN[0])},{str(SPN[1])}&' +
                 f'apikey={apikey}').content
             image_data = BytesIO(f)
             self.map = arcade.Texture(Image.open(image_data).convert('RGBA'))
             self.map_widget.texture = self.map
         except Exception:
             print("Invalid input")
+
+    def redraw(self):
+        f = requests.get(
+            f'https://static-maps.yandex.ru/v1?ll={self.ll_x},{self.ll_y}&spn={str(SPN[0])},{str(SPN[1])}&' +
+            f'apikey={apikey}').content
+        image_data = BytesIO(f)
+        self.map = arcade.Texture(Image.open(image_data).convert('RGBA'))
+        self.map_widget.texture = self.map
+
+    def on_key_press(self, key, modifiers):
+        global SPN
+        if key == arcade.key.PAGEUP:
+            if SPN[0] / 5 >= 0.001:
+                SPN = (SPN[0] / 5, SPN[1] / 5)
+                self.redraw()
+        if key == arcade.key.PAGEDOWN:
+            if SPN[0] * 5 <= 80:
+                SPN = (SPN[0] * 5, SPN[1] * 5)
+                self.redraw()
 
 
 def main():
