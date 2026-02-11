@@ -15,6 +15,7 @@ class MainView(arcade.View):
         self.uimanager.enable()
         self.ll_y = '0'
         self.ll_x = '0'
+        self.theme= 'light'
         self.map = None
         self.map_widget = arcade.gui.UIImage(
             texture=arcade.Texture.create_empty("start_map", (800, 500)),
@@ -62,8 +63,16 @@ class MainView(arcade.View):
         )
         search_button.on_click = self.search_and_draw
 
+        theme_button = arcade.gui.UIFlatButton(
+            text='Сменить тему карты',
+            width=150,
+            height=30
+        )
+        theme_button.on_click = self.toggle_theme
+
         self.menu_layout.add(label_x, column=0, row=0)
         self.menu_layout.add(self.input_x, column=1, row=0)
+        self.menu_layout.add(theme_button, column=2, row=0)
 
         self.menu_layout.add(label_y, column=0, row=1)
         self.menu_layout.add(self.input_y, column=1, row=1)
@@ -89,7 +98,7 @@ class MainView(arcade.View):
             self.ll_y = str(float(self.input_y.text))
             f = requests.get(
                 f'https://static-maps.yandex.ru/v1?ll={self.ll_x},{self.ll_y}&spn={str(SPN[0])},{str(SPN[1])}&' +
-                f'apikey={apikey}').content
+                f'theme={self.theme}&apikey={apikey}').content
             image_data = BytesIO(f)
             self.map = arcade.Texture(Image.open(image_data).convert('RGBA'))
             self.map_widget.texture = self.map
@@ -99,10 +108,17 @@ class MainView(arcade.View):
     def redraw(self):
         f = requests.get(
             f'https://static-maps.yandex.ru/v1?ll={self.ll_x},{self.ll_y}&spn={str(SPN[0])},{str(SPN[1])}&' +
-            f'apikey={apikey}').content
+            f'theme={self.theme}&apikey={apikey}').content
         image_data = BytesIO(f)
         self.map = arcade.Texture(Image.open(image_data).convert('RGBA'))
         self.map_widget.texture = self.map
+
+    def toggle_theme(self, event):
+        if self.theme == 'light':
+            self.theme = 'dark'
+        else:
+            self.theme = 'light'
+        self.redraw()
 
     def on_key_press(self, key, modifiers):
         global SPN
