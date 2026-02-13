@@ -15,7 +15,7 @@ class MainView(arcade.View):
         self.uimanager.enable()
         self.ll_y = '0'
         self.ll_x = '0'
-        self.theme= 'light'
+        self.theme = 'light'
         self.map = None
         self.map_widget = arcade.gui.UIImage(
             texture=arcade.Texture.create_empty("start_map", (800, 500)),
@@ -64,8 +64,8 @@ class MainView(arcade.View):
         search_button.on_click = self.search_and_draw
 
         theme_button = arcade.gui.UIFlatButton(
-            text='Сменить тему карты',
-            width=150,
+            text='Theme',
+            width=100,
             height=30
         )
         theme_button.on_click = self.toggle_theme
@@ -94,24 +94,35 @@ class MainView(arcade.View):
 
     def search_and_draw(self, event):
         try:
+            global SPN
+            SPN = (0.005, 0.005)
             self.ll_x = str(float(self.input_x.text))
             self.ll_y = str(float(self.input_y.text))
             f = requests.get(
                 f'https://static-maps.yandex.ru/v1?ll={self.ll_x},{self.ll_y}&spn={str(SPN[0])},{str(SPN[1])}&' +
                 f'theme={self.theme}&apikey={apikey}').content
-            image_data = BytesIO(f)
-            self.map = arcade.Texture(Image.open(image_data).convert('RGBA'))
+            image = Image.open(BytesIO(f))
+            self.map = arcade.Texture(image.convert('RGBA'))
             self.map_widget.texture = self.map
         except Exception:
             print("Invalid input")
 
     def redraw(self):
-        f = requests.get(
-            f'https://static-maps.yandex.ru/v1?ll={self.ll_x},{self.ll_y}&spn={str(SPN[0])},{str(SPN[1])}&' +
-            f'theme={self.theme}&apikey={apikey}').content
-        image_data = BytesIO(f)
-        self.map = arcade.Texture(Image.open(image_data).convert('RGBA'))
-        self.map_widget.texture = self.map
+        global SPN
+        try:
+            f = requests.get(
+                f'https://static-maps.yandex.ru/v1?ll={self.ll_x},{self.ll_y}&spn={str(SPN[0])},{str(SPN[1])}&' +
+                f'theme={self.theme}&apikey={apikey}').content
+            image = Image.open(BytesIO(f))
+            self.map = arcade.Texture(image.convert('RGBA'))
+            self.map_widget.texture = self.map
+        except Exception:
+            SPN = (80, 80)
+            self.ll_x = "0"
+            self.ll_y = "0"
+            self.input_x.text = "0"
+            self.input_y.text = "0"
+            self.redraw()
 
     def toggle_theme(self, event):
         if self.theme == 'light':
@@ -130,24 +141,46 @@ class MainView(arcade.View):
             if SPN[0] * 5 <= 80:
                 SPN = (SPN[0] * 5, SPN[1] * 5)
                 self.redraw()
-
-        step_x = SPN[0] / 2
-        step_y = SPN[1] / 2
-        x = float(self.ll_x)
-        y = float(self.ll_y)
         if key == arcade.key.LEFT:
-            x -= step_x
+            self.calculate_x(False)
+            self.redraw()
         if key == arcade.key.RIGHT:
-            x += step_x
+            self.calculate_x(True)
+            self.redraw()
         if key == arcade.key.UP:
-            y += step_y
+            self.calculate_y(True)
+            self.redraw()
         if key == arcade.key.DOWN:
+            self.calculate_y(False)
+            self.redraw()
+
+    def calculate_x(self, t):
+        if t:
+            step_x = SPN[0] / 2
+            x = float(self.ll_x)
+            x += step_x
+            x = max(-180.0, min(180.0, x))
+            self.ll_x = str(x)
+        else:
+            step_x = SPN[0] / 2
+            x = float(self.ll_x)
+            x -= step_x
+            x = max(-180.0, min(180.0, x))
+            self.ll_x = str(x)
+
+    def calculate_y(self, t):
+        if t:
+            step_y = SPN[0] / 2
+            y = float(self.ll_y)
+            y += step_y
+            y = max(-180.0, min(180.0, y))
+            self.ll_y = str(y)
+        else:
+            step_y = SPN[0] / 2
+            y = float(self.ll_y)
             y -= step_y
-        x = max(-180, min(180, x))
-        y = max(-85, min(85, y))
-        self.ll_x = str(x)
-        self.ll_y = str(y)
-        self.redraw()
+            y = max(-180.0, min(180.0, y))
+            self.ll_y = str(y)
 
 
 def main():
