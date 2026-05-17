@@ -3,9 +3,11 @@ import arcade.gui
 import requests
 from io import BytesIO
 from PIL import Image
+import math
 
 MAPS_API_KEY = ""
 GEOCODER_API_KEY = ""
+SEARCH_API_KEY = ""
 
 
 class MapApp(arcade.View):
@@ -64,6 +66,16 @@ class MapApp(arcade.View):
         self.main_layout.add(child=self.address_label, anchor_x="center", anchor_y="bottom")
         self.uimanager.add(self.main_layout)
 
+    def lonlat_distance(self, a, b):
+        degree_to_meters_factor = 111 * 1000
+        a_lon, a_lat = a
+        b_lon, b_lat = b
+        radians_lattitude = math.radians((a_lat + b_lat) / 2.)
+        lat_distance = abs(a_lat - b_lat) * degree_to_meters_factor
+        lon_distance = abs(a_lon - b_lon) * degree_to_meters_factor * math.cos(radians_lattitude)
+        distance = math.sqrt(lat_distance * lat_distance + lon_distance * lon_distance)
+        return distance
+
     def update_address_text(self):
         if not self.last_geo_object: return
         meta = self.last_geo_object['metaDataProperty']['GeocoderMetaData']
@@ -85,6 +97,40 @@ class MapApp(arcade.View):
         except Exception:
             self.address_label.text = "Объект не найден"
 
+    def find_organization(self, lon, lat):
+        try:
+            url = "https://search-maps.yandex.ru/v1/"
+            params = {
+                "apikey": SEARCH_API_KEY,
+                "text": "организация",
+                "ll": f"{lon},{lat}",
+                "type": "biz",
+                "lang": "ru_RU",
+                "results": 1
+            }
+            res = requests.get(url, params=params).json()
+
+            if not res.get("features"):
+                self.address_label.text = "Организаций рядом не найдено"
+                return
+
+            org = res["features"][0]
+            org_lon, org_lat = org["geometry"]["coordinates"]
+
+            dist = self.lonlat_distance((lon, lat), (org_lon, org_lat))
+
+            if dist <= 50:
+                name = org["properties"]["CompanyMetaData"]["name"]
+                addr = org["properties"]["CompanyMetaData"].get("address", "Адрес не указан")
+                self.address_label.text = f"Орг: {name} | {addr} ({int(dist)}м)"
+                self.pt = f"{org_lon},{org_lat},pm2rdm"
+                self.last_geo_object = None
+                self.redraw()
+            else:
+                self.address_label.text = f"Ближайшая орг. слишком далеко ({int(dist)}м)"
+        except Exception:
+            self.address_label.text = "Ошибка поиска организаций"
+
     def perform_search(self, event=None):
         query = self.search_input.text.strip()
         if not query: return
@@ -101,17 +147,19 @@ class MapApp(arcade.View):
             self.address_label.text = "Объект не найден"
 
     def on_mouse_press(self, x, y, button, modifiers):
-        if button == arcade.MOUSE_BUTTON_LEFT:
-            m = self.map_widget
-            if (m.center_x - m.width / 2 < x < m.center_x + m.width / 2 and
-                    m.center_y - m.height / 2 < y < m.center_y + m.height / 2):
-                dx = x - m.center_x
-                dy = y - m.center_y
+        m = self.map_widget
+        if (m.center_x - m.width / 2 < x < m.center_x + m.width / 2 and
+                m.center_y - m.height / 2 < y < m.center_y + m.height / 2):
 
-                click_lon = self.ll_x + (dx / m.width) * self.spn * 2.0
-                click_lat = self.ll_y + (dy / m.height) * self.spn * 1.2
+            dx = x - m.center_x
+            dy = y - m.center_y
+            click_lon = self.ll_x + (dx / m.width) * self.spn * 2.0
+            click_lat = self.ll_y + (dy / m.height) * self.spn * 1.2
 
+            if button == arcade.MOUSE_BUTTON_LEFT:
                 self.reverse_geocode(click_lon, click_lat)
+            elif button == arcade.MOUSE_BUTTON_RIGHT:
+                self.find_organization(click_lon, click_lat)
 
     def reset_search(self, event=None):
         self.pt = None
@@ -131,19 +179,12 @@ class MapApp(arcade.View):
 
     def redraw(self):
         try:
-            params = {
-                "ll": f"{self.ll_x},{self.ll_y}",
-                "spn": f"{self.spn},{self.spn}",
-                "size": f"{self.req_w},{self.req_h}",
-                "theme": self.theme,
-                "apikey": MAPS_API_KEY
-            }
+            params = {"ll": f"{self.ll_x},{self.ll_y}", "spn": f"{self.spn},{self.spn}",
+                      "size": f"{self.req_w},{self.req_h}", "theme": self.theme, "apikey": MAPS_API_KEY}
             if self.pt: params["pt"] = self.pt
-
             res = requests.get("https://static-maps.yandex.ru/v1?", params=params)
             res.raise_for_status()
             img = Image.open(BytesIO(res.content)).convert("RGBA")
-
             self.map_widget.texture = arcade.Texture(img)
         except Exception as e:
             print(f"Error: {e}")
@@ -153,17 +194,22 @@ class MapApp(arcade.View):
         step = self.spn / 2
         if key == arcade.key.PAGEUP:
             self.spn = max(0.0001, self.spn / 2)
+            self.redraw()
         elif key == arcade.key.PAGEDOWN:
             self.spn = min(80.0, self.spn * 2)
+            self.redraw()
         elif key == arcade.key.LEFT:
             self.ll_x -= step
+            self.redraw()
         elif key == arcade.key.RIGHT:
             self.ll_x += step
+            self.redraw()
         elif key == arcade.key.UP:
             self.ll_y = min(85.0, self.ll_y + step)
+            self.redraw()
         elif key == arcade.key.DOWN:
             self.ll_y = max(-85.0, self.ll_y - step)
-        self.redraw()
+            self.redraw()
 
     def on_draw(self):
         self.clear()
