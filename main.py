@@ -18,6 +18,9 @@ class MapApp(arcade.View):
         self.spn = 0.005
         self.theme = 'light'
         self.pt = None
+        self.use_postal_code = False
+        self.last_geo_object = None
+
         self.map_widget = arcade.gui.UIImage(
             texture=arcade.Texture.create_empty("map", (800, 500)),
             width=800, height=500
@@ -28,14 +31,16 @@ class MapApp(arcade.View):
 
     def setup_ui(self):
         self.main_layout = arcade.gui.UIAnchorLayout()
-
         top_vbox = arcade.gui.UIBoxLayout(vertical=True, space_between=10)
         controls = arcade.gui.UIBoxLayout(vertical=False, space_between=5)
 
-        self.search_input = arcade.gui.UIInputText(text="Москва", width=350, height=30)
-        search_btn = arcade.gui.UIFlatButton(text="Искать", width=100)
-        reset_btn = arcade.gui.UIFlatButton(text="Сброс", width=80)
-        theme_btn = arcade.gui.UIFlatButton(text="Тема", width=80)
+        self.search_input = arcade.gui.UIInputText(text="Москва", width=250, height=30)
+        search_btn = arcade.gui.UIFlatButton(text="Искать", width=80)
+        reset_btn = arcade.gui.UIFlatButton(text="Сброс", width=70)
+        theme_btn = arcade.gui.UIFlatButton(text="Тема", width=70)
+
+        self.index_btn = arcade.gui.UIFlatButton(text="Индекс: Выкл", width=120)
+        self.index_btn.on_click = self.toggle_postal_code
 
         search_btn.on_click = self.perform_search
         reset_btn.on_click = self.reset_search
@@ -45,6 +50,7 @@ class MapApp(arcade.View):
         controls.add(search_btn)
         controls.add(reset_btn)
         controls.add(theme_btn)
+        controls.add(self.index_btn)
 
         top_vbox.add(controls)
         top_vbox.add(self.map_widget)
@@ -59,8 +65,22 @@ class MapApp(arcade.View):
 
         self.main_layout.add(child=top_vbox, anchor_x="center", anchor_y="top", align_y=-10)
         self.main_layout.add(child=self.address_label, anchor_x="center", anchor_y="bottom")
-
         self.uimanager.add(self.main_layout)
+
+    def update_address_text(self):
+        if not self.last_geo_object:
+            return
+
+        meta = self.last_geo_object['metaDataProperty']['GeocoderMetaData']
+        address = meta['text']
+        if self.use_postal_code:
+            postal_code = meta.get('Address', {}).get('postal_code')
+            if postal_code:
+                address = f"{postal_code}, {address}"
+            else:
+                address = f"[Индекс не найден], {address}"
+
+        self.address_label.text = f"Адрес: {address}"
 
     def perform_search(self, event=None):
         query = self.search_input.text.strip()
@@ -70,19 +90,23 @@ class MapApp(arcade.View):
             params = {"apikey": GEOCODER_API_KEY, "geocode": query, "format": "json"}
             res = requests.get(url, params=params).json()
 
-            obj = res['response']['GeoObjectCollection']['featureMember'][0]['GeoObject']
-            self.ll_x, self.ll_y = map(float, obj['Point']['pos'].split())
+            self.last_geo_object = res['response']['GeoObjectCollection']['featureMember'][0]['GeoObject']
+            self.ll_x, self.ll_y = map(float, self.last_geo_object['Point']['pos'].split())
 
-            full_addr = obj['metaDataProperty']['GeocoderMetaData']['text']
-            self.address_label.text = f"Адрес: {full_addr}"
-
+            self.update_address_text()
             self.pt = f"{self.ll_x},{self.ll_y},pm2rdm"
             self.redraw()
         except Exception:
             self.address_label.text = "Объект не найден"
 
+    def toggle_postal_code(self, event):
+        self.use_postal_code = not self.use_postal_code
+        self.index_btn.text = f"Индекс: {'Вкл' if self.use_postal_code else 'Выкл'}"
+        self.update_address_text()
+
     def reset_search(self, event=None):
         self.pt = None
+        self.last_geo_object = None
         self.search_input.text = ""
         self.address_label.text = "Адрес: -"
         self.redraw()
@@ -113,21 +137,20 @@ class MapApp(arcade.View):
         elif key == arcade.key.PAGEDOWN:
             self.spn = min(80.0, self.spn * 2)
             self.redraw()
-        elif key == arcade.key.LEFT:
-            self.ll_x -= step
-            self.redraw()
-        elif key == arcade.key.RIGHT:
-            self.ll_x += step
-            self.redraw()
-        elif key == arcade.key.UP:
-            self.ll_y = min(85.0, self.ll_y + step)
-            self.redraw()
-        elif key == arcade.key.DOWN:
-            self.ll_y = max(-85.0, self.ll_y - step)
+        elif key in (arcade.key.LEFT, arcade.key.RIGHT, arcade.key.UP, arcade.key.DOWN):
+            if key == arcade.key.LEFT:
+                self.ll_x -= step
+            elif key == arcade.key.RIGHT:
+                self.ll_x += step
+            elif key == arcade.key.UP:
+                self.ll_y = min(85.0, self.ll_y + step)
+            elif key == arcade.key.DOWN:
+                self.ll_y = max(-85.0, self.ll_y - step)
             self.redraw()
 
     def on_draw(self):
         self.clear()
+        # Подложка для адреса
         arcade.draw_rect_filled(
             arcade.rect.XYWH(self.window.width / 2, 20, self.window.width, 40),
             (0, 0, 0, 150)
@@ -136,7 +159,7 @@ class MapApp(arcade.View):
 
 
 def main():
-    arcade.Window(800, 600, "Yandex Maps Search")
+    arcade.Window(800, 600, "Yandex Maps Search", resizable=True)
     view = MapApp()
     arcade.get_window().show_view(view)
     arcade.run()
